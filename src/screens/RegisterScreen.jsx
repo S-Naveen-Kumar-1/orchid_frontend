@@ -10,11 +10,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { BASE_URL } from '../config/config';
 import { showMessage } from 'react-native-flash-message';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Logo } from '../assets/index';
 
 export default function RegisterScreen({ navigation }) {
   const [name, setName] = useState('');
@@ -46,7 +48,7 @@ export default function RegisterScreen({ navigation }) {
 
     // Password validation
     if (!password) newErrors.password = 'Password is required';
-   
+
     // Confirm Password validation
     if (!confirmPassword)
       newErrors.confirmPassword = 'Please confirm your password';
@@ -60,66 +62,64 @@ export default function RegisterScreen({ navigation }) {
     return Object.keys(newErrors).length === 0;
   };
 
-const handleRegister = async () => {
-  if (!validate()) return;
-  setLoading(true);
-  console.log(`${BASE_URL}/register`);
+  const handleRegister = async () => {
+    if (!validate()) return;
+    setLoading(true);
+    console.log(`${BASE_URL}/register`);
 
-  try {
-    // ✅ Send registration data
-    const response = await axios.post(`${BASE_URL}/register`, {
-      name,
-      email,
-      phone,
-      password,
-      type,
-    });
-    
+    try {
+      // ✅ Send registration data
+      const response = await axios.post(`${BASE_URL}/register`, {
+        name,
+        email,
+        phone,
+        password,
+        type,
+      });
 
-    const data = response.data;
+      const data = response.data;
 
-    console.log(data,"check registered user")
-    // ✅ Store user in AsyncStorage
-    if (data.user) {
-      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      console.log(data, 'check registered user');
+      // ✅ Store user in AsyncStorage
+      if (data.user) {
+        await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      }
+
+      // ✅ Success message
+      showMessage({
+        message: data.message || 'Registration successful!',
+        type: 'success',
+        icon: 'success',
+        duration: 2500,
+      });
+
+      // ✅ Navigate based on role
+      if (type === 'farmer') {
+        navigation.replace('FarmerHome');
+      } else if (type === 'sprayer') {
+        navigation.replace('SprayerHome');
+      } else if (type === 'admin') {
+        navigation.replace('AdminHome');
+      } else {
+        navigation.replace('Login');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        'Unable to connect to server. Please try again later.';
+
+      showMessage({
+        message: errorMessage,
+        type: 'danger',
+        icon: 'danger',
+        duration: 2500,
+      });
+    } finally {
+      setLoading(false);
     }
-
-    // ✅ Success message
-    showMessage({
-      message: data.message || 'Registration successful!',
-      type: 'success',
-      icon: 'success',
-      duration: 2500,
-    });
-
-    // ✅ Navigate based on role
-    if (type === 'farmer') {
-      navigation.replace('FarmerHome');
-    } else if (type === 'sprayer') {
-      navigation.replace('SprayerHome');
-    } else if (type === 'admin') {
-      navigation.replace('AdminHome');
-    } else {
-      navigation.replace('Login');
-    }
-  } catch (error) {
-    console.error('Registration error:', error);
-
-    const errorMessage =
-      error.response?.data?.message ||
-      'Unable to connect to server. Please try again later.';
-
-    showMessage({
-      message: errorMessage,
-      type: 'danger',
-      icon: 'danger',
-      duration: 2500,
-    });
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   return (
     <KeyboardAvoidingView
@@ -131,6 +131,9 @@ const handleRegister = async () => {
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
       >
+        <View style={styles.logoContainer}>
+          <Image source={Logo} style={styles.logoImage} resizeMode="cover" />
+        </View>
         <Text style={styles.heading}>Register</Text>
         <Text style={styles.title}>KASHSPRAY</Text>
 
@@ -343,4 +346,27 @@ const styles = StyleSheet.create({
   typeButtonTextSelected: {
     color: '#fff',
   },
+  logoContainer: {
+  width: 150,
+  height: 150,
+  borderRadius: 75,
+  overflow: "hidden",
+  // backgroundColor: "#fff",
+  alignItems: "center",
+  justifyContent: "center",
+  marginBottom: 20,
+
+  // Soft shadow (iOS & Android)
+  shadowColor: "#000",
+  shadowOpacity: 0.1,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 4,
+},
+  logoImage: {
+    width: 120, // slightly smaller than container
+    height: 120,
+    borderRadius: 50, // optional (keeps image corners rounded)
+  },
+
 });
