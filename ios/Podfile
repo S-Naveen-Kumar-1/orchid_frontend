@@ -1,3 +1,4 @@
+# ios/Podfile
 # Resolve react_native_pods.rb with node to allow for hoisting
 require Pod::Executable.execute_command('node', ['-p',
   'require.resolve(
@@ -7,6 +8,11 @@ require Pod::Executable.execute_command('node', ['-p',
 
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
+
+# Toggle Flipper here: set to '0' to disable Flipper temporarily if needed
+# Example: export FLIPPER_ENABLED=0
+# Or uncomment below to hard-disable:
+# ENV['FLIPPER_ENABLED'] = '0'
 
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
@@ -19,17 +25,50 @@ target 'OrchidService' do
 
   use_react_native!(
     :path => config[:reactNativePath],
-    # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
+  # Safe Flipper handling: call use_flipper! only if defined
+  flipper_enabled = ENV['FLIPPER_ENABLED'] != '0'
+
+  if flipper_enabled
+    if defined?(use_flipper!)
+      # You can adjust versions if needed for your RN version
+      use_flipper!({
+        'Flipper' => '0.125.0',
+        'Flipper-Folly' => '2.6.10',
+        'Flipper-RSocket' => '1.4.3'
+      })
+    else
+      Pod::UI.puts "use_flipper! is not available in this RN/CocoaPods context — skipping Flipper".yellow
+    end
+  else
+    Pod::UI.puts "Flipper disabled via FLIPPER_ENABLED=0".yellow
+  end
+
   post_install do |installer|
-    # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
     react_native_post_install(
       installer,
       config[:reactNativePath],
-      :mac_catalyst_enabled => false,
-      # :ccache_enabled => true
+      :mac_catalyst_enabled => false
     )
+
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+        config.build_settings['ENABLE_BITCODE'] = 'NO' if config.build_settings['ENABLE_BITCODE'].nil?
+        if target.name =~ /RCT/
+          config.build_settings['SWIFT_VERSION'] = '5.0' if config.build_settings['SWIFT_VERSION'].nil?
+        end
+      end
+    end
+
+    installer.aggregate_targets.each do |aggregate|
+      aggregate.user_project.targets.each do |user_target|
+        user_target.build_configurations.each do |config|
+          config.build_settings['DEFINES_MODULE'] = 'NO' if config.build_settings['DEFINES_MODULE'].nil?
+        end
+      end
+    end
   end
 end

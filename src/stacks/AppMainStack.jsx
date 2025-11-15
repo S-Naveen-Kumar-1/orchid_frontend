@@ -11,9 +11,7 @@ import TrackSprayerScreen from '../components/TrackSprayerScreen';
 import SprayerHome from '../screens/SprayerHome';
 import RegisterScreen from '../screens/RegisterScreen';
 import AdminHome from '../screens/AdminHome';
-
-
-
+import CheckoutScreen from '../components/CheckoutScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -61,7 +59,11 @@ export default function AppMainStack() {
           component={AdminHome}
           options={{ headerShown: false }}
         />
-        
+        <Stack.Screen
+          name="CheckoutScreen"
+          component={CheckoutScreen}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
