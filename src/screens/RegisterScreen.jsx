@@ -14,6 +14,7 @@ import {
 import { BASE_URL } from '../config/config';
 import { showMessage } from 'react-native-flash-message';
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function RegisterScreen({ navigation }) {
   const [name, setName] = useState('');
@@ -62,8 +63,7 @@ export default function RegisterScreen({ navigation }) {
 const handleRegister = async () => {
   if (!validate()) return;
   setLoading(true);
-  console.log(`${BASE_URL}register`)
-
+  console.log(`${BASE_URL}/register`);
 
   try {
     // ✅ Send registration data
@@ -74,11 +74,19 @@ const handleRegister = async () => {
       password,
       type,
     });
+    
 
+    const data = response.data;
 
-    // ✅ Success response
+    console.log(data,"check registered user")
+    // ✅ Store user in AsyncStorage
+    if (data.user) {
+      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+    }
+
+    // ✅ Success message
     showMessage({
-      message: response.data.message || 'Registration successful!',
+      message: data.message || 'Registration successful!',
       type: 'success',
       icon: 'success',
       duration: 2500,
@@ -89,13 +97,14 @@ const handleRegister = async () => {
       navigation.replace('FarmerHome');
     } else if (type === 'sprayer') {
       navigation.replace('SprayerHome');
+    } else if (type === 'admin') {
+      navigation.replace('AdminHome');
     } else {
       navigation.replace('Login');
     }
   } catch (error) {
     console.error('Registration error:', error);
 
-    // Handle backend or network error
     const errorMessage =
       error.response?.data?.message ||
       'Unable to connect to server. Please try again later.';

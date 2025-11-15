@@ -20,10 +20,10 @@ const Stack = createNativeStackNavigator();
 export default function AppMainStack() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="AdminHome">
+      <Stack.Navigator initialRouteName="Login">
         <Stack.Screen
-          name="AdminHome"
-          component={AdminHome}
+          name="Login"
+          component={LoginScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen
@@ -56,11 +56,11 @@ export default function AppMainStack() {
           component={RegisterScreen}
           options={{ headerShown: false }}
         />
-        {/* <Stack.Screen
+        <Stack.Screen
           name="AdminHome"
           component={AdminHome}
           options={{ headerShown: false }}
-        /> */}
+        />
         
       </Stack.Navigator>
     </NavigationContainer>

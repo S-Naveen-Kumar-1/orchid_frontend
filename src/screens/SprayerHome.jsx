@@ -1,68 +1,105 @@
-// screens/SprayerHome.js
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Dimensions,
+  Alert,
+  Platform,
+  Linking,
 } from 'react-native';
+import axios from 'axios';
 import LinearGradient from 'react-native-linear-gradient';
-import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import * as Animatable from 'react-native-animatable';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Animatable from 'react-native-animatable';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BASE_URL } from '../config/config';
 
-const { width } = Dimensions.get('window');
-
-export default function SprayerHome({ navigation }) {
+export default function SprayerHome() {
+  const [sprayerId, setSprayerId] = useState(null);
   const [activeTab, setActiveTab] = useState('Pending');
+  const [services, setServices] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showPicker, setShowPicker] = useState({});
+  const [selectedDates, setSelectedDates] = useState({});
 
-  const sprays = [
-    {
-      id: 1,
-      field: 'Field A',
-      orchid: 'Phalaenopsis',
-      spraysCount: 3,
-      status: 'Pending',
-      colors: ['#36D1DC', '#5B86E5'],
-      buttonColors: ['#43cea2', '#185a9d'],
-    },
-    {
-      id: 2,
-      field: 'Field B',
-      orchid: 'Dendrobium',
-      spraysCount: 2,
-      status: 'In Progress',
-      colors: ['#f7971e', '#ffd200'],
-      buttonColors: ['#f7961e', '#ffb347'],
-    },
-    {
-      id: 3,
-      field: 'Field C',
-      orchid: 'Cattleya',
-      spraysCount: 4,
-      status: 'Completed',
-      colors: ['#8e2de2', '#4a00e0'],
-      buttonColors: ['#6a11cb', '#2575fc'],
-    },
-  ];
+  useEffect(() => {
+    const loadSprayerId = async () => {
+      const userData = await AsyncStorage.getItem('user');
+      if (!userData) return;
 
-  const filteredSprays = sprays.filter(s => s.status === activeTab);
+      const u = JSON.parse(userData);
+      setSprayerId(u.id);
+    };
+    loadSprayerId();
+  }, []);
+
+  const fetchServices = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get(`${BASE_URL}/sprayer/services`);
+      setServices(
+        res.data.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      );
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Failed to fetch services');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchServices();
+  }, []);
+
+  const onChangeDate = (event, date, serviceId) => {
+    setShowPicker({ ...showPicker, [serviceId]: false });
+    if (date) {
+      setSelectedDates({ ...selectedDates, [serviceId]: date });
+    }
+  };
+
+  const assignSlot = async service => {
+    if (!sprayerId) return Alert.alert('Error', 'Sprayer ID not available');
+
+    const slot = selectedDates[service._id];
+    if (!slot) return Alert.alert('Error', 'Select a date & time');
+
+    try {
+      await axios.post(`${BASE_URL}/sprayer/assign-slot`, {
+        serviceId: service._id,
+        userId: service.userId,
+        sprayerId,
+        scheduleDate: slot,
+      });
+
+      Alert.alert('Success', 'Slot assigned successfully');
+      setSelectedDates({ ...selectedDates, [service._id]: null });
+      fetchServices();
+    } catch (err) {
+      console.error(err, err.response?.data?.message);
+      Alert.alert(
+        'Error',
+        err.response?.data?.message || 'Something went wrong'
+      );
+    }
+  };
+
+  const filteredServices = services.filter(s => s.status === activeTab);
+
+  const statusColors = {
+    Pending: ['#36D1DC', '#5B86E5'],
+    'In Progress': ['#f7971e', '#ffd200'],
+    Completed: ['#8e2de2', '#4a00e0'],
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f0f8f5' }}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Back button */}
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backIcon}
-        >
-          <Ionicons name="arrow-back" size={28} color="#2e7d32" />
-        </TouchableOpacity>
-
-        <Text style={styles.heading}>My Sprays</Text>
+      <ScrollView contentContainerStyle={{ padding: 20 }}>
+        <Text style={styles.heading}>Sprayer Dashboard</Text>
 
         {/* Tabs */}
         <View style={styles.tabs}>
@@ -87,58 +124,81 @@ export default function SprayerHome({ navigation }) {
           ))}
         </View>
 
-        {filteredSprays.length === 0 && (
-          <Text style={styles.noDataText}>No sprays in this category.</Text>
+        {filteredServices.length === 0 && (
+          <Text style={styles.noDataText}>No services in this category</Text>
         )}
 
-        {filteredSprays.map((spray, index) => (
-          <Animatable.View
-            key={spray.id}
-            animation="fadeInUp"
-            delay={index * 150}
-            style={{ width: '100%' }}
-            useNativeDriver
-          >
+        {filteredServices.map((service, idx) => (
+          <Animatable.View key={service._id} animation="fadeInUp" delay={idx * 100}>
             <LinearGradient
-              colors={spray.colors}
+              colors={statusColors[service.status]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.cardGradient}
             >
               <View style={styles.card}>
                 <View style={styles.cardHeader}>
-                  <FontAwesome5 name="leaf" size={28} color="#fff" />
-                  <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={[styles.cardTitle, { color: '#fff' }]}>
-                      {spray.field}
-                    </Text>
-                    <Text style={[styles.cardSubtitle, { color: '#f0f0f0' }]}>
-                      Orchid: {spray.orchid}
-                    </Text>
-                  </View>
+                  <Text style={styles.cardTitle}>{service.field}</Text>
+                  <Text style={styles.cardStatus}>{service.status}</Text>
                 </View>
 
-                <Text style={[styles.statusText, { color: '#fff' }]}>
-                  Sprays Count: {spray.spraysCount}
-                </Text>
-                <Text style={[styles.statusText, { color: '#fff' }]}>
-                  Status: {spray.status}
-                </Text>
+                <Text style={styles.cardText}>Orchid: {service.orchid}</Text>
+                <Text style={styles.cardText}>Sprays: {service.spraysCount}</Text>
+                <Text style={styles.cardText}>Farmer: {service.userName}</Text>
+                <Text style={styles.cardText}>Address: {service.address}</Text>
+                <Text style={styles.cardText}>Pincode: {service.pincode}</Text>
 
-                <TouchableOpacity
-                  onPress={() => alert(`Viewing ${spray.field} details`)}
-                  activeOpacity={0.8}
-                  style={{ width: '100%', marginTop: 12 }}
-                >
-                  <LinearGradient
-                    colors={spray.buttonColors}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.cardButton}
-                  >
-                    <Text style={styles.cardButtonText}>View Details</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                {/* Pending: Assign slot */}
+                {service.status === 'Pending' && (
+                  <View style={{ marginTop: 10 }}>
+                    <TouchableOpacity
+                      onPress={() => setShowPicker({ ...showPicker, [service._id]: true })}
+                      style={styles.assignButton}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: 'bold' }}>
+                        {selectedDates[service._id]
+                          ? new Date(selectedDates[service._id]).toLocaleString()
+                          : 'Select Date & Time'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {showPicker[service._id] && (
+                      <DateTimePicker
+                        value={selectedDates[service._id] || new Date()}
+                        mode="datetime"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        minimumDate={new Date()}
+                        onChange={(event, date) => onChangeDate(event, date, service._id)}
+                      />
+                    )}
+
+                    <TouchableOpacity
+                      onPress={() => assignSlot(service)}
+                      style={[styles.assignButton, { marginTop: 6 }]}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: 'bold' }}>Assign Slot</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Show farmer contact once slot assigned */}
+                {service.status !== 'Pending' && service.userPhone && (
+                  <View style={styles.contactCard}>
+                    <Text style={styles.contactText}>Farmer Contact: {service.userPhone}</Text>
+                    <TouchableOpacity
+                      style={styles.contactButton}
+                      onPress={() => Linking.openURL(`tel:${service.userPhone}`)}
+                    >
+                      <Text style={styles.contactButtonText}>Call Farmer</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {service.scheduleDate && (
+                  <Text style={{ marginTop: 8, fontWeight: '600', color: '#fff' }}>
+                    Scheduled: {new Date(service.scheduleDate).toLocaleString()}
+                  </Text>
+                )}
               </View>
             </LinearGradient>
           </Animatable.View>
@@ -149,96 +209,45 @@ export default function SprayerHome({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-    paddingBottom: 40,
-    alignItems: 'center',
-  },
-  backIcon: {
-    alignSelf: 'flex-start',
-    marginBottom: 10,
-  },
-  heading: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#2e7d32',
-    marginBottom: 20,
-    alignSelf: 'flex-start',
-  },
-  tabs: {
-    flexDirection: 'row',
-    marginBottom: 15,
-    justifyContent: 'space-between',
-  },
+  heading: { fontSize: 28, fontWeight: 'bold', color: '#2e7d32', marginBottom: 20 },
+  tabs: { flexDirection: 'row', marginBottom: 15 },
   tabButton: {
     flex: 1,
-    paddingVertical: 10,
-    marginHorizontal: 5,
+    padding: 10,
+    margin: 2,
     borderRadius: 12,
     backgroundColor: '#e0e0e0',
     alignItems: 'center',
   },
-  activeTabButton: {
+  activeTabButton: { backgroundColor: '#2e7d32' },
+  tabText: { color: '#555', fontWeight: '600' },
+  activeTabText: { color: '#fff' },
+  noDataText: { textAlign: 'center', marginVertical: 20, fontSize: 16, color: '#555' },
+  cardGradient: { borderRadius: 15, marginBottom: 15 },
+  card: { padding: 15, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.1)' },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
+  cardStatus: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  cardText: { color: '#fff', marginVertical: 1 },
+  assignButton: {
     backgroundColor: '#2e7d32',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#555',
-  },
-  activeTabText: {
-    color: '#fff',
-  },
-  noDataText: {
-    textAlign: 'center',
-    color: '#666',
-    fontSize: 14,
-    marginVertical: 20,
-  },
-  cardGradient: {
-    borderRadius: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  card: {
-    width: width * 0.9,
-    borderRadius: 20,
-    padding: 20,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 10,
+    borderRadius: 10,
     alignItems: 'center',
   },
-  cardHeader: {
-    flexDirection: 'row',
+  contactCard: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 10,
     alignItems: 'center',
-    marginBottom: 12,
   },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+  contactText: { color: '#fff', fontWeight: '600', marginBottom: 6 },
+  contactButton: {
+    backgroundColor: '#fff',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
   },
-  cardSubtitle: {
-    fontSize: 14,
-    marginTop: 2,
-  },
-  statusText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cardButton: {
-    height: 50,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-  },
-  cardButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
-    textAlign: 'center',
-  },
+  contactButtonText: { color: '#2e7d32', fontWeight: 'bold' },
 });
